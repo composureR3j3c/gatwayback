@@ -1,0 +1,43 @@
+package com.gateway.apigateway.gateway;
+
+import com.gateway.apigateway.model.Route;
+import org.springframework.http.HttpMethod;
+import org.springframework.http.ReactiveHttpInputMessage;
+import org.springframework.stereotype.Component;
+import org.springframework.web.reactive.function.client.WebClient;
+import org.springframework.web.server.ServerWebExchange;
+import reactor.core.publisher.Mono;
+
+@Component
+public class GatewayHandler {
+
+    private final GatewayRouter router;
+    private final WebClient client;
+
+    public GatewayHandler(GatewayRouter router) {
+        this.router = router;
+        this.client = WebClient.builder().build();
+    }
+
+    public Mono<Void> handle(ServerWebExchange exchange) {
+        return router.match(exchange.getRequest())
+                .flatMap(route -> forward(route, exchange))
+                .switchIfEmpty(Mono.error(new RuntimeException("No route matched")));
+    }
+
+    private Mono<Void> forward(Route route, ServerWebExchange exchange) {
+        HttpMethod method = exchange.getRequest().getMethod();
+        String incomingPath = exchange.getRequest().getURI().getPath();
+        String target = route.getUpstream() + incomingPath;
+
+        WebClient.RequestHeadersSpec<?> req =
+                client.method(method)
+                        .uri(target)
+                        .headers(h -> h.addAll(exchange.getRequest().getHeaders()))
+                        .body(exchange.getRequest().getBody(), Object.class);
+
+        return req.exchangeToMono(resp ->
+                exchange.getResponse().writeWith(((ReactiveHttpInputMessage) resp).getBody())
+        );
+    }
+}
