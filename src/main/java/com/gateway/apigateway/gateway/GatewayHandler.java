@@ -2,7 +2,6 @@ package com.gateway.apigateway.gateway;
 
 import com.gateway.apigateway.model.Route;
 import org.springframework.http.HttpMethod;
-import org.springframework.http.ReactiveHttpInputMessage;
 import org.springframework.stereotype.Component;
 import org.springframework.web.reactive.function.client.WebClient;
 import org.springframework.web.server.ServerWebExchange;
@@ -22,22 +21,30 @@ public class GatewayHandler {
     public Mono<Void> handle(ServerWebExchange exchange) {
         return router.match(exchange.getRequest())
                 .flatMap(route -> forward(route, exchange))
-                .switchIfEmpty(Mono.error(new RuntimeException("No route matched")));
+                .switchIfEmpty(Mono.error(new RuntimeException(
+                        "No route matched for path: " + exchange.getRequest().getPath().value()
+                )));
     }
 
     private Mono<Void> forward(Route route, ServerWebExchange exchange) {
         HttpMethod method = exchange.getRequest().getMethod();
         String incomingPath = exchange.getRequest().getURI().getPath();
-        String target = route.getUpstream() + incomingPath;
 
-        WebClient.RequestHeadersSpec<?> req =
-                client.method(method)
-                        .uri(target)
-                        .headers(h -> h.addAll(exchange.getRequest().getHeaders()))
-                        .body(exchange.getRequest().getBody(), Object.class);
+        // Remove route prefix
+        String relativePath = incomingPath.substring(route.getPath().length());
+        String target = route.getUpstream() + relativePath;
 
-        return req.exchangeToMono(resp ->
-                exchange.getResponse().writeWith(((ReactiveHttpInputMessage) resp).getBody())
-        );
+        return client.method(method)
+                .uri(target)
+                .headers(headers -> headers.addAll(exchange.getRequest().getHeaders()))
+                .body(exchange.getRequest().getBody(), Object.class)
+                .exchangeToMono(resp -> {
+                    exchange.getResponse().setStatusCode(resp.statusCode());
+                    exchange.getResponse().getHeaders().addAll(resp.headers().asHttpHeaders());
+                    return exchange.getResponse().writeWith(
+                            resp.bodyToFlux(byte[].class)
+                                    .map(bytes -> exchange.getResponse().bufferFactory().wrap(bytes))
+                    );
+                });
     }
 }
