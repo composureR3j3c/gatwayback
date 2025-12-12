@@ -8,7 +8,7 @@ import java.util.List;
 
 @RestController
 @RequestMapping("/admin/routes")
-@CrossOrigin("*")  // allow frontend
+@CrossOrigin("*")
 public class RouteController {
 
     private final RouteRepository repo;
@@ -24,6 +24,9 @@ public class RouteController {
 
     @PostMapping
     public Route create(@RequestBody Route route) {
+        // if (!route.getPath().endsWith("/")) {
+        //     route.setPath(route.getPath() + "/");
+        // }
         return repo.save(route);
     }
 

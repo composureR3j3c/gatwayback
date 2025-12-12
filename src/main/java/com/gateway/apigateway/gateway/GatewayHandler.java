@@ -4,6 +4,7 @@ import com.gateway.apigateway.model.Route;
 import org.springframework.http.HttpMethod;
 import org.springframework.stereotype.Component;
 import org.springframework.web.reactive.function.client.WebClient;
+import org.springframework.web.reactive.function.server.ServerResponse;
 import org.springframework.web.server.ServerWebExchange;
 import reactor.core.publisher.Mono;
 
@@ -18,33 +19,50 @@ public class GatewayHandler {
         this.client = WebClient.builder().build();
     }
 
-    public Mono<Void> handle(ServerWebExchange exchange) {
+    public Mono<ServerResponse> handle(ServerWebExchange exchange) {
+        System.err.println(exchange.getRequest().getURI().getPath()+" -> handling request");
         return router.match(exchange.getRequest())
                 .flatMap(route -> forward(route, exchange))
-                .switchIfEmpty(Mono.error(new RuntimeException(
-                        "No route matched for path: " + exchange.getRequest().getPath().value()
-                )));
+                .switchIfEmpty(ServerResponse.notFound().build());
     }
 
-    private Mono<Void> forward(Route route, ServerWebExchange exchange) {
-        HttpMethod method = exchange.getRequest().getMethod();
-        String incomingPath = exchange.getRequest().getURI().getPath();
+    private Mono<ServerResponse> forward(Route route, ServerWebExchange exchange) {
 
-        // Remove route prefix
-        String relativePath = incomingPath.substring(route.getPath().length());
+        HttpMethod method = exchange.getRequest().getMethod();
+        String path = exchange.getRequest().getURI().getPath();
+        String relativePath = path.substring(route.getPath().length());
         String target = route.getUpstream() + relativePath;
+
+       
 
         return client.method(method)
                 .uri(target)
-                .headers(headers -> headers.addAll(exchange.getRequest().getHeaders()))
-                .body(exchange.getRequest().getBody(), Object.class)
-                .exchangeToMono(resp -> {
-                    exchange.getResponse().setStatusCode(resp.statusCode());
-                    exchange.getResponse().getHeaders().addAll(resp.headers().asHttpHeaders());
-                    return exchange.getResponse().writeWith(
-                            resp.bodyToFlux(byte[].class)
-                                    .map(bytes -> exchange.getResponse().bufferFactory().wrap(bytes))
-                    );
-                });
+                .headers(headers -> {
+                    headers.addAll(exchange.getRequest().getHeaders());
+                    headers.remove("Host");
+                    headers.remove("Content-Length");
+                    headers.remove("Transfer-Encoding");
+                    headers.remove("Accept-Encoding");
+                    headers.remove("Connection");
+                    headers.remove("Keep-Alive");
+                    headers.remove("Proxy-Connection");
+                    headers.remove("Upgrade");
+                    headers.remove("Sec-Fetch-Site");
+                    headers.remove("Sec-Fetch-Mode");
+                })
+                .exchangeToMono(resp -> resp.toEntity(byte[].class)
+                        .flatMap(entity -> {
+                            // Set upstream status
+                            exchange.getResponse().setStatusCode(entity.getStatusCode());
+                            // Set upstream headers
+                            exchange.getResponse().getHeaders().addAll(entity.getHeaders());
+                            System.out.println("Forwarded to: " + target + " with status: " + entity.getStatusCode());
+                            // Write upstream body
+                            return exchange.getResponse()
+                                    .writeWith(Mono.just(
+                                            exchange.getResponse().bufferFactory()
+                                                    .wrap(entity.getBody())));
+                        }))
+                .then(Mono.empty()); // Do not override status with 200
     }
 }

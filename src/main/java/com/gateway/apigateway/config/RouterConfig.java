@@ -1,11 +1,14 @@
 package com.gateway.apigateway.config;
 
 import com.gateway.apigateway.gateway.GatewayHandler;
+
+import reactor.core.publisher.Mono;
+
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.web.reactive.function.server.*;
-import org.springframework.web.server.ServerWebExchange;
-import reactor.core.publisher.Mono;
+import org.springframework.web.reactive.function.server.RouterFunction;
+import org.springframework.web.reactive.function.server.RouterFunctions;
+import org.springframework.web.reactive.function.server.ServerResponse;
 
 @Configuration
 public class RouterConfig {
@@ -19,16 +22,16 @@ public class RouterConfig {
     @Bean
     public RouterFunction<ServerResponse> routes() {
         return RouterFunctions.route()
-                // API routes go through gateway
                 .path("/api", builder -> builder
-                        .GET("/{segment:.*}", this::forwardToHandler)
-                        .POST("/{segment:.*}", this::forwardToHandler)
-                        .PUT("/{segment:.*}", this::forwardToHandler)
-                        .DELETE("/{segment:.*}", this::forwardToHandler))
+                        .GET("/**", this::forwardToHandler)
+                        .POST("/**", this::forwardToHandler)
+                        .PUT("/**", this::forwardToHandler)
+                        .DELETE("/**", this::forwardToHandler))
                 .build();
     }
-    private Mono<ServerResponse> forwardToHandler(ServerRequest request) {
-        ServerWebExchange exchange = request.exchange();
-       return handler.handle(exchange).then(ServerResponse.ok().build());
+
+    private Mono<ServerResponse> forwardToHandler(
+            org.springframework.web.reactive.function.server.ServerRequest request) {
+        return handler.handle(request.exchange());
     }
 }
