@@ -24,15 +24,19 @@ public final class GatewayAccessLogUtil {
     public static synchronized void log(
             String method,
             String path,
+            String headers,
             String upstream,
             int status,
+            String responseBody,
             long latencyMs) {
         Map<String, Object> log = new LinkedHashMap<>();
         log.put("timestamp", Instant.now().toString());
         log.put("method", method);
         log.put("path", path);
+        log.put("headers", headers);
         log.put("upstream", upstream);
         log.put("status", status);
+        log.put("response_body", responseBody);
         log.put("latency_ms", latencyMs);
 
         write(log);

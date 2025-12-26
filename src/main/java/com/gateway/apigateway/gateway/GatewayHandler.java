@@ -2,6 +2,8 @@ package com.gateway.apigateway.gateway;
 
 import com.gateway.apigateway.model.Route;
 import com.gateway.apigateway.util.GatewayAccessLogUtil;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.core.JsonProcessingException;
 
 import org.springframework.http.HttpMethod;
 import org.springframework.stereotype.Component;
@@ -62,12 +64,25 @@ public class GatewayHandler {
 
                             String latencyHeader = entity.getHeaders().getFirst("X-Response-Time");
                             long latency = latencyHeader != null ? Long.parseLong(latencyHeader) : 0L;
+                            String headers;
+                            String responseBody;
+                            try {
+                                ObjectMapper mapper = new ObjectMapper();
+                                headers = mapper.writeValueAsString(exchange.getRequest().getHeaders().toSingleValueMap());
+                                responseBody = mapper.writeValueAsString(entity.getBody()).toString();
+                            } catch (JsonProcessingException e) {
+                                headers = exchange.getRequest().getHeaders().toString();
+                                responseBody= new String(entity.getBody());
+                            }
+                  
 
                             GatewayAccessLogUtil.log(
                                     method.name(),
                                     path,
+                                    headers,
                                     target,
                                     entity.getStatusCode().value(),
+                                    responseBody,
                                     latency);
 
                             // Write upstream body
