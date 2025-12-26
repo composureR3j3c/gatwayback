@@ -1,6 +1,8 @@
 package com.gateway.apigateway.gateway;
 
 import com.gateway.apigateway.model.Route;
+import com.gateway.apigateway.util.GatewayAccessLogUtil;
+
 import org.springframework.http.HttpMethod;
 import org.springframework.stereotype.Component;
 import org.springframework.web.reactive.function.client.WebClient;
@@ -20,7 +22,7 @@ public class GatewayHandler {
     }
 
     public Mono<ServerResponse> handle(ServerWebExchange exchange) {
-        System.err.println(exchange.getRequest().getURI().getPath()+" -> handling request");
+        System.err.println(exchange.getRequest().getURI().getPath() + " -> handling request");
         return router.match(exchange.getRequest())
                 .flatMap(route -> forward(route, exchange))
                 .switchIfEmpty(ServerResponse.notFound().build());
@@ -32,8 +34,6 @@ public class GatewayHandler {
         String path = exchange.getRequest().getURI().getPath();
         String relativePath = path.substring(route.getPath().length());
         String target = route.getUpstream() + relativePath;
-
-       
 
         return client.method(method)
                 .uri(target)
@@ -57,6 +57,19 @@ public class GatewayHandler {
                             // Set upstream headers
                             exchange.getResponse().getHeaders().addAll(entity.getHeaders());
                             System.out.println("Forwarded to: " + target + " with status: " + entity.getStatusCode());
+
+                            // Log access
+
+                            String latencyHeader = entity.getHeaders().getFirst("X-Response-Time");
+                            long latency = latencyHeader != null ? Long.parseLong(latencyHeader) : 0L;
+
+                            GatewayAccessLogUtil.log(
+                                    method.name(),
+                                    path,
+                                    target,
+                                    entity.getStatusCode().value(),
+                                    latency);
+
                             // Write upstream body
                             return exchange.getResponse()
                                     .writeWith(Mono.just(

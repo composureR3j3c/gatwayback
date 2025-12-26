@@ -1,0 +1,10 @@
+{"timestamp":"2025-12-26T12:47:34.217740500Z","method":"GET","path":"/api/apolsup","upstream":"https://apolsup.bankofabyssinia.com","status":403,"latency_ms":0}
+{"timestamp":"2025-12-26T12:59:24.769564300Z","method":"GET","path":"/api/apolsup","upstream":"https://apolsup.bankofabyssinia.com","status":403,"latency_ms":0}
+{"timestamp":"2025-12-26T12:59:52.793090500Z","method":"GET","path":"/api/apolsup","upstream":"https://apolsup.bankofabyssinia.com","status":403,"latency_ms":0}
+{"timestamp":"2025-12-26T13:03:17.975664900Z","method":"GET","path":"/api/apolsup","upstream":"https://apolsup.bankofabyssinia.com","status":403,"latency_ms":0}
+{"timestamp":"2025-12-26T13:03:31.735355800Z","method":"GET","path":"/api/apolsup","upstream":"https://apolsup.bankofabyssinia.com","status":403,"latency_ms":0}
+{"timestamp":"2025-12-26T13:03:48.366329200Z","method":"GET","path":"/api/apolsup","upstream":"https://apolsup.bankofabyssinia.com","status":403,"latency_ms":0}
+{"timestamp":"2025-12-26T13:03:49.630637Z","method":"GET","path":"/api/apolsup","upstream":"https://apolsup.bankofabyssinia.com","status":403,"latency_ms":0}
+{"timestamp":"2025-12-26T13:03:50.801013200Z","method":"GET","path":"/api/apolsup","upstream":"https://apolsup.bankofabyssinia.com","status":403,"latency_ms":0}
+{"timestamp":"2025-12-26T13:04:25.711130200Z","method":"GET","path":"/api/jphBase/todos/1","upstream":"https://jsonplaceholder.typicode.com/todos/1","status":200,"latency_ms":0}
+{"timestamp":"2025-12-26T13:05:17.491057900Z","method":"GET","path":"/api/jphBase/comments","upstream":"https://jsonplaceholder.typicode.com/comments","status":200,"latency_ms":0}
