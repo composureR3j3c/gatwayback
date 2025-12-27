@@ -1,3 +1,5 @@
+package com.gateway.apigateway.config;
+
 import io.netty.resolver.DefaultAddressResolverGroup;
 import reactor.netty.http.client.HttpClient;
 

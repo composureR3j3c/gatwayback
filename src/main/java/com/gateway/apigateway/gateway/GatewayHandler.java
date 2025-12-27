@@ -1,15 +1,21 @@
 package com.gateway.apigateway.gateway;
 
-import com.gateway.apigateway.model.Route;
-import com.gateway.apigateway.util.GatewayAccessLogUtil;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.core.JsonProcessingException;
+import java.nio.charset.StandardCharsets;
 
+import org.springframework.core.io.buffer.DataBufferUtils;
 import org.springframework.http.HttpMethod;
+import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
 import org.springframework.web.reactive.function.client.WebClient;
 import org.springframework.web.reactive.function.server.ServerResponse;
 import org.springframework.web.server.ServerWebExchange;
+
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.gateway.apigateway.model.Route;
+import com.gateway.apigateway.util.GatewayAccessLogUtil;
+import com.gateway.apigateway.util.GatewayRequestUtil;
+
 import reactor.core.publisher.Mono;
 
 @Component
@@ -36,6 +42,12 @@ public class GatewayHandler {
         String path = exchange.getRequest().getURI().getPath();
         String relativePath = path.substring(route.getPath().length());
         String target = route.getUpstream() + relativePath;
+        long startTime = System.nanoTime();
+
+        String requestId = GatewayRequestUtil.getRequestId(exchange.getRequest());
+        String clientIp = GatewayRequestUtil.getClientIp(exchange.getRequest());
+
+        final String requestHeadersJson = headersToJson(exchange);
 
         return client.method(method)
                 .uri(target)
@@ -61,36 +73,64 @@ public class GatewayHandler {
                             System.out.println("Forwarded to: " + target + " with status: " + entity.getStatusCode());
 
                             // Log access
-
+                            byte[] bodyBytes = entity.getBody();
                             String latencyHeader = entity.getHeaders().getFirst("X-Response-Time");
-                            long latency = latencyHeader != null ? Long.parseLong(latencyHeader) : 0L;
-                            String headers;
+                            long latency = latencyHeader != null ? Long.parseLong(latencyHeader) : 1L;
                             String responseBody;
-                            try {
-                                ObjectMapper mapper = new ObjectMapper();
-                                headers = mapper.writeValueAsString(exchange.getRequest().getHeaders().toSingleValueMap());
-                                responseBody = mapper.writeValueAsString(entity.getBody()).toString();
-                            } catch (JsonProcessingException e) {
-                                headers = exchange.getRequest().getHeaders().toString();
-                                responseBody= new String(entity.getBody());
-                            }
-                  
+                            MediaType ct = exchange.getRequest().getHeaders().getContentType();
+                            System.err.println("Content-Type: " + ct);
+                            Mono<String> requestBodyMono = ct != null
+                                    ? extractRequestBody(exchange)
+                                    : Mono.just("");
+                            final String headers = requestHeadersJson;
 
-                            GatewayAccessLogUtil.log(
-                                    method.name(),
-                                    path,
-                                    headers,
-                                    target,
-                                    entity.getStatusCode().value(),
-                                    responseBody,
-                                    latency);
+                            // Compose write and logging reactively (no blocking)
+                            return requestBodyMono.flatMap(requestBody -> {
+                                System.out.println("Request Body: " + requestBody);
+                                String respBody = bodyBytes != null ? new String(bodyBytes, StandardCharsets.UTF_8)
+                                        : "";
+                                return exchange.getResponse()
+                                        .writeWith(Mono.just(
+                                                exchange.getResponse().bufferFactory()
+                                                        .wrap(entity.getBody())))
+                                        .doFinally(signal -> {
+                                            long latencyMs = (System.nanoTime() - startTime) / 1_000_000;
+                                            GatewayAccessLogUtil.log(
+                                                    clientIp,
+                                                    requestId,
+                                                    requestBody,
+                                                    method.name(),
+                                                    path,
+                                                    headers != null ? headers : "",
+                                                    target,
+                                                    entity.getStatusCode().value(),
+                                                    respBody,
+                                                    latencyMs);
 
-                            // Write upstream body
-                            return exchange.getResponse()
-                                    .writeWith(Mono.just(
-                                            exchange.getResponse().bufferFactory()
-                                                    .wrap(entity.getBody())));
+                                        });
+                            });
                         }))
                 .then(Mono.empty()); // Do not override status with 200
+    }
+
+    private static String headersToJson(ServerWebExchange exchange) {
+        try {
+            ObjectMapper mapper = new ObjectMapper();
+            return mapper.writeValueAsString(exchange.getRequest().getHeaders().toSingleValueMap());
+        } catch (JsonProcessingException e) {
+            return exchange.getRequest().getHeaders().toString();
+        }
+    }
+
+    private static Mono<String> extractRequestBody(ServerWebExchange exchange) {
+        return exchange.getRequest().getBody()
+                .map(dataBuffer -> {
+                    byte[] bytes = new byte[dataBuffer.readableByteCount()];
+                    dataBuffer.read(bytes);
+                    DataBufferUtils.release(dataBuffer);
+                    return new String(bytes, StandardCharsets.UTF_8);
+                })
+                .reduce((s1, s2) -> s1 + s2)
+                .defaultIfEmpty("");
     }
 }
