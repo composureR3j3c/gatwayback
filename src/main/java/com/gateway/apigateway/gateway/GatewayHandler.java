@@ -12,6 +12,7 @@ import org.springframework.web.server.ServerWebExchange;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.gateway.apigateway.metrics.GatewayMetrics;
 import com.gateway.apigateway.model.Route;
 import com.gateway.apigateway.util.GatewayAccessLogUtil;
 import com.gateway.apigateway.util.GatewayRequestUtil;
@@ -23,21 +24,24 @@ public class GatewayHandler {
 
     private final GatewayRouter router;
     private final WebClient client;
+    private final GatewayMetrics metrics;
 
-    public GatewayHandler(GatewayRouter router) {
+    public GatewayHandler(GatewayRouter router, GatewayMetrics metrics) {
         this.router = router;
+        this.metrics = metrics;
         this.client = WebClient.builder().build();
     }
 
     public Mono<ServerResponse> handle(ServerWebExchange exchange) {
         System.err.println(exchange.getRequest().getURI().getPath() + " -> handling request");
+        metrics.onRequestStart();
+        long start = System.currentTimeMillis();
         return router.match(exchange.getRequest())
-                .flatMap(route -> forward(route, exchange))
+                .flatMap(route -> forward(route, exchange, start))
                 .switchIfEmpty(ServerResponse.notFound().build());
     }
 
-    private Mono<ServerResponse> forward(Route route, ServerWebExchange exchange) {
-
+    private Mono<ServerResponse> forward(Route route, ServerWebExchange exchange, long start) {
         HttpMethod method = exchange.getRequest().getMethod();
         String path = exchange.getRequest().getURI().getPath();
         String relativePath = path.substring(route.getPath().length());
@@ -89,6 +93,8 @@ public class GatewayHandler {
                                 System.out.println("Request Body: " + requestBody);
                                 String respBody = bodyBytes != null ? new String(bodyBytes, StandardCharsets.UTF_8)
                                         : "";
+                                metrics.onRequestEnd("NO_MATCH", 404,
+                                        System.currentTimeMillis() - start);
                                 return exchange.getResponse()
                                         .writeWith(Mono.just(
                                                 exchange.getResponse().bufferFactory()
