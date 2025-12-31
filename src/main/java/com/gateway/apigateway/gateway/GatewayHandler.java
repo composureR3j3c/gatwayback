@@ -95,8 +95,6 @@ public class GatewayHandler {
                                         : "";
                                 long latencyMs = (System.nanoTime() - startTime) / 1_000_000;
                                 metrics.onRequestEnd(path, entity.getStatusCode().value(), latencyMs);
-                                    // "NO_MATCH", 404,
-                                    //     System.currentTimeMillis() - start);
                                 return exchange.getResponse()
                                         .writeWith(Mono.just(
                                                 exchange.getResponse().bufferFactory()
