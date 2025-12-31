@@ -80,7 +80,7 @@ public class GatewayHandler {
                             byte[] bodyBytes = entity.getBody();
                             String latencyHeader = entity.getHeaders().getFirst("X-Response-Time");
                             long latency = latencyHeader != null ? Long.parseLong(latencyHeader) : 1L;
-                            String responseBody;
+                            // String responseBody;
                             MediaType ct = exchange.getRequest().getHeaders().getContentType();
                             System.err.println("Content-Type: " + ct);
                             Mono<String> requestBodyMono = ct != null
@@ -93,14 +93,16 @@ public class GatewayHandler {
                                 System.out.println("Request Body: " + requestBody);
                                 String respBody = bodyBytes != null ? new String(bodyBytes, StandardCharsets.UTF_8)
                                         : "";
-                                metrics.onRequestEnd("NO_MATCH", 404,
-                                        System.currentTimeMillis() - start);
+                                long latencyMs = (System.nanoTime() - startTime) / 1_000_000;
+                                metrics.onRequestEnd(path, entity.getStatusCode().value(), latencyMs);
+                                    // "NO_MATCH", 404,
+                                    //     System.currentTimeMillis() - start);
                                 return exchange.getResponse()
                                         .writeWith(Mono.just(
                                                 exchange.getResponse().bufferFactory()
                                                         .wrap(entity.getBody())))
                                         .doFinally(signal -> {
-                                            long latencyMs = (System.nanoTime() - startTime) / 1_000_000;
+                                            
                                             GatewayAccessLogUtil.log(
                                                     clientIp,
                                                     requestId,
