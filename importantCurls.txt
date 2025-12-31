@@ -1,0 +1,23 @@
+curl --location 'http://localhost:9090/admin/metrics'
+curl --location 'http://localhost:9090/admin/routes' \
+--header 'Content-Type: application/json' \
+--data '{
+    "name": "jph",
+    "path": "/api/jphBase",
+    "upstream": "https://jsonplaceholder.typicode.com"
+}'
+curl --location 'http://localhost:9090/admin/routes' \
+--header 'Content-Type: application/json' \
+--data '{
+    "name": "apolsupBase",
+    "path": "/api/apolsup",
+    "upstream": "https://apolsup.bankofabyssinia.com"
+}'
+curl --location 'http://localhost:9090/api/jphBase/comments?postId=1' 
+curl --location 'http://localhost:9090/api/apolsup' \
+--header 'Content-Type: application/json' \
+--data '{
+    "name": "apolsupBase",
+    "path": "/api/apolsup",
+    "upstream": "https://apolsup.bankofabyssinia.com"
+}'

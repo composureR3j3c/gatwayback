@@ -15,6 +15,7 @@ public class GatewayMetrics {
     private final Map<String, AtomicLong> routeCounts = new ConcurrentHashMap<>();
     private final Map<Integer, AtomicLong> statusCounts = new ConcurrentHashMap<>();
     private final Map<String, AtomicLong> latencyTotals = new ConcurrentHashMap<>();
+    private final Map<String, AtomicLong> avgLatencyTotals = new ConcurrentHashMap<>();
 
     public void onRequestStart() {
         totalRequests.incrementAndGet();
@@ -35,6 +36,10 @@ public class GatewayMetrics {
         latencyTotals
                 .computeIfAbsent(route, k -> new AtomicLong())
                 .addAndGet(latencyMs);
+
+        avgLatencyTotals
+                .computeIfAbsent(route, k -> new AtomicLong())
+                .set(latencyTotals.get(route).get() / routeCounts.get(route).get());
     }
 
     public Map<String, Object> snapshot() {
@@ -43,7 +48,8 @@ public class GatewayMetrics {
                 "activeRequests", activeRequests.get(),
                 "routes", routeCounts,
                 "statusCodes", statusCounts,
-                "latencyTotalsMs", latencyTotals
+                "latencyTotalsMs", latencyTotals,
+                "AvglatencyTotalsMs", avgLatencyTotals
         );
     }
 }
